@@ -4,19 +4,6 @@ import json
 from datasets import Dataset, DatasetDict
 from huggingface_hub import HfApi
 
-def get_system_message(id):
-    if "맞춤법" in id:
-        return "이 문장의 맞춤법 오류를 수정하세요."
-    
-    messages = {
-        "띄어쓰기문장부호오류": "이 문장의 띄어쓰기와 문장부호 오류를 수정하세요.",
-        "오탈자": "이 문장의 오탈자를 수정하세요.",
-        "음성인식기오류": "이 음성 인식 결과 문장의 오류를 수정하세요.",
-        "자동생성오류": "이 자동 생성된 문장의 오류를 수정하세요."
-    }
-    
-    return messages.get(id, "이 문장의 오류를 수정하세요.")
-
 def make_dataset(root, train=True):
     dataset = []
     
@@ -33,10 +20,7 @@ def make_dataset(root, train=True):
         data = json.load(f)
 
         for item in data:
-            system = get_system_message(item['id'])
-
-            formatted = f"{system}\Human: {item['err_sentence']}\nAssistant: {item['cor_sentence']}"
-            dataset.append({"text": formatted})
+            dataset.append(item)
     
     # dataset으로 변환하여 반환
     return Dataset.from_list(dataset)
