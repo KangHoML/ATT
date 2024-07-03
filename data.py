@@ -42,6 +42,3 @@ if __name__ == "__main__":
     # Hub에 업로드
     data_addr = "kanghokh/att_data"
     data_dict.push_to_hub(data_addr)
-    
-    
-    
