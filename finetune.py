@@ -45,7 +45,7 @@ else:
 
 # apply the pre-defined template
 def apply_template(example):
-    with open('template.json', 'r') as f:
+    with open('template.json', 'r', encoding='utf-8') as f:
         template = json.load(f)
 
     system_part = f"{template['system_header']} {template['system_message']}{template['eot_token']}"
@@ -83,6 +83,14 @@ def train():
     train_dataset = train_dataset.map(lambda x: add_eos(x, tokenizer))
     val_dataset = val_dataset.map(lambda x: add_eos(x, tokenizer))
 
+    # quantization config
+    quantization_config = BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_compute_dtype=compute_dtype,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_use_double_quant=False
+    )
+    
     # Load Model
     model = AutoModelForCausalLM.from_pretrained(
         args.base_model,
@@ -92,15 +100,6 @@ def train():
         attn_implementation=attn_implementation
     )
     model.config.use_cache = False
-
-
-    # quantization config
-    quantization_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_compute_dtype=compute_dtype,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=False
-    )
 
     # peft configuration
     lora_config = LoraConfig(
