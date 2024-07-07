@@ -8,32 +8,24 @@ from transformers import BitsAndBytesConfig, AutoTokenizer, AutoModelForCausalLM
 from peft import LoraConfig
 from trl import SFTTrainer
 
-parser = argparse.ArgumentParser()
-# -- dataset
-parser.add_argument("--data", type=str, default="kanghokh/att_data")
+def get_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--config", type=str, default="config.json")
+    args = parser.parse_args()
+    
+    # configuration 파일 열기
+    with open(args.config, 'r') as f:
+        config = json.load(f)
 
-# -- model
-parser.add_argument("--base_model", type=str, default="yanolja/EEVE-Korean-Instruct-2.8B-v1.0")
-parser.add_argument("--save_path", type=str, default="./results/try2")
+    # argparser Namespace 객체로 변환
+    for key, value in config.items():
+        if isinstance(value, dict):
+            for sub_key, sub_value in value.items():
+                setattr(args, sub_key, sub_value)
+        else:
+            setattr(args, key, value)
 
-# -- lora config
-parser.add_argument("--alpha", type=int, default=16)
-parser.add_argument("--dropout", type=float, default=0.1)
-parser.add_argument("--rank", type=int, default=64)
-
-# -- training configuration
-parser.add_argument("--epoch", type=int, default=3)
-parser.add_argument("--batch_size", type=int, default=4)
-parser.add_argument("--lr", type=float, default=2e-4)
-parser.add_argument("--weight_decay", type=float, default=0.001)
-parser.add_argument("--norm", type=float, default=0.3)
-parser.add_argument("--warmup", type=float, default=0.03)
-parser.add_argument("--lr_scheduler", type=str, default="constant")
-parser.add_argument("--steps", type=int, default=1000)
-
-# checkpoint로 훈련 재개
-parser.add_argument("--ckpt_path", type=str, default=None)
-parser.add_argument("--log_steps", type=int, default=100)
+    return args
 
 # bfloat & flash_attention available
 if torch.cuda.get_device_capability()[0] >= 8:
@@ -43,16 +35,27 @@ else:
     attn_implementation = "eager"
     compute_dtype = torch.float16
 
-# apply the pre-defined template
+# LLM Template 
 def apply_template(example):
     with open('template.json', 'r', encoding='utf-8') as f:
         template = json.load(f)
 
-    system_part = f"{template['system_header']} {template['system_message']}{template['eot_token']}"
-    user_part = f"{template['user_header']} {template['user_instruction']}\n\n{example['err_sentence']}{template['eot_token']}"
-    assistant_part = f"{template['assistant_header']} {example['cor_sentence']}{template['eot_token']}"
+    formatted_text = f"{template['begin_of_text']}"
     
-    return {"text": f"{system_part}{user_part}{assistant_part}"}    
+    # System message
+    formatted_text += f"{template['start_header']}{template['system_header']}{template['end_header']}\n\n"
+    formatted_text += f"{template['system_message']}{template['end_of_text']}"
+    
+    # User message (instruction and input)
+    formatted_text += f"{template['start_header']}{template['user_header']}{template['end_header']}\n\n"
+    formatted_text += f"{template['instruction']}\n"
+    formatted_text += f"{example['err_sentence']}{template['end_of_text']}"
+    
+    # Assistant message (corrected sentence)
+    formatted_text += f"{template['start_header']}{template['assistant_header']}{template['end_header']}\n\n"
+    formatted_text += f"{example['cor_sentence']}{template['end_of_text']}"
+
+    return {"text": formatted_text}
 
 # add eos token
 def add_eos(example, tokenizer):
@@ -72,12 +75,14 @@ def train():
     # Load Tokenizer
     tokenizer = AutoTokenizer.from_pretrained(
         args.base_model,
+        token=True,
         trust_remote_code=True
     )
 
     # pad token setting
     if tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "right"
 
     # add EOS token if needed
     train_dataset = train_dataset.map(lambda x: add_eos(x, tokenizer))
@@ -94,6 +99,7 @@ def train():
     # Load Model
     model = AutoModelForCausalLM.from_pretrained(
         args.base_model,
+        token=True,
         quantization_config=quantization_config,
         device_map="auto",
         torch_dtype=compute_dtype,
@@ -129,7 +135,7 @@ def train():
         optim="paged_adamw_32bit",
 
         # learnning rate scheduler
-        lr_scheduler_type=args.lr_scheduler,
+        lr_scheduler_type=args.type,
         warmup_ratio=args.warmup,
 
         # gradient accumulation
@@ -146,7 +152,7 @@ def train():
         save_steps=args.steps,
         save_total_limit=3,
         load_best_model_at_end=True,
-        metric_for_best_model="eval_loss",
+        metric_for_best_model="eval_samples_per_second",
         greater_is_better=False,
 
         # log
@@ -170,13 +176,13 @@ def train():
     )
 
     if args.ckpt_path is not None:
-        trainer.train(resume_from_checkpoint=args.ckpt_path)
+        trainer.train(resume_from_checkpoint=f"{args.save_path}/{args.ckpt_path}")
     else:
         trainer.train()
 
 if __name__ == "__main__":
     global args
-    args = parser.parse_args()
+    args = get_args()
 
     # train 및 결과 출력
     os.makedirs(args.save_path, exist_ok=True)

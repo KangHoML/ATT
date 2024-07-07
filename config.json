@@ -1,0 +1,45 @@
+{
+    "dataset": {
+        "data": "kanghokh/att_data"
+    },
+
+    "model": {
+        "base_model": "meta-llama/Meta-Llama-3-8B-Instruct",
+        "save_path": "./Llama3-8B-Instruct"
+    },
+
+    "lora": {
+        "alpha": 16,
+        "dropout": 0.1,
+        "rank": 64
+    },
+
+    "training": {
+        "epoch": 3,
+        "batch_size": 4
+
+    },
+
+    "optimizer": {
+        "lr": 2e-4,
+        "weight_decay": 1e-3,
+        "norm": 0.3
+    },
+
+    "lr_scheduler": {
+        "warmup": 0.03,
+        "type": "constant"
+    },
+
+    "misc": {
+        "steps": 1000,
+        "log_steps": 100,
+        "ckpt_path": "checkpoint-14000"
+    },
+
+    "generation": {
+        "top_k": 50,
+        "top_p": 0.95,
+        "temperature": 0.7
+    }
+}
