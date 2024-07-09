@@ -34,7 +34,7 @@
     "misc": {
         "steps": 1000,
         "log_steps": 100,
-        "ckpt_path": "checkpoint-14000"
+        "ckpt_path": null
     },
 
     "generation": {

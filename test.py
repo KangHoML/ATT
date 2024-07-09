@@ -62,7 +62,7 @@ def load_model_and_tokenizer():
         torch_dtype=torch.float16
     )
 
-    model = PeftModel.from_pretrained(base_model, args.model_path)
+    model = PeftModel.from_pretrained(base_model, args.model)
     model.eval()
 
     return model, tokenizer
@@ -70,11 +70,11 @@ def load_model_and_tokenizer():
 def test(model, tokenizer, input_text):
     formatted_input = apply_template(input_text)
     input_ids = tokenizer.encode(formatted_input, return_tensors='pt').to(model.device)
-
+    max_tokens = max(input_ids.shape[1] * 2, 50)
     with torch.no_grad():
         output = model.generate(
             input_ids, 
-            max_new_tokens=100, 
+            max_new_tokens=max_tokens, 
             num_return_sequences=1,
             do_sample=True,
             top_k=args.top_k,
@@ -84,7 +84,7 @@ def test(model, tokenizer, input_text):
 
     generated_text = tokenizer.decode(output[0], skip_special_tokens=True)
     
-    assistant_response = generated_text.split(tokenizer.eos_token)[-2].strip()
+    assistant_response = generated_text.split(tokenizer.eos_token)[-1].strip()
     
     return assistant_response
 
