@@ -66,11 +66,10 @@ def add_eos(example, tokenizer):
 def train():
     # load the dataset
     dataset = load_dataset(args.data)
-    train_dataset, val_dataset = dataset['train'], dataset['val']
+    train_dataset = dataset[args.train_key]
 
     # apply the template
     train_dataset = train_dataset.map(apply_template)
-    val_dataset = val_dataset.map(apply_template)
     
     # Load Tokenizer
     tokenizer = AutoTokenizer.from_pretrained(
@@ -86,7 +85,6 @@ def train():
 
     # add EOS token if needed
     train_dataset = train_dataset.map(lambda x: add_eos(x, tokenizer))
-    val_dataset = val_dataset.map(lambda x: add_eos(x, tokenizer))
 
     # quantization config
     quantization_config = BitsAndBytesConfig(
@@ -124,7 +122,6 @@ def train():
 
         # data loader
         per_device_train_batch_size=args.batch_size,
-        per_device_eval_batch_size=args.batch_size,
         dataloader_num_workers=4,
         group_by_length=True,
 
@@ -145,15 +142,10 @@ def train():
         fp16=(compute_dtype == torch.float16),
         bf16=(compute_dtype == torch.bfloat16),
 
-        # evaluation
-        evaluation_strategy="steps",
-        eval_steps=args.steps,
+        # save
         save_strategy="steps",
         save_steps=args.steps,
         save_total_limit=3,
-        load_best_model_at_end=True,
-        metric_for_best_model="eval_loss",
-        greater_is_better=False,
 
         # log
         logging_dir=f"{args.save_path}/logs",
@@ -166,7 +158,6 @@ def train():
     trainer = SFTTrainer(
         model=model,
         train_dataset=train_dataset,
-        eval_dataset=val_dataset,
         peft_config=lora_config,
         dataset_text_field="text",
         max_seq_length=None,
@@ -185,5 +176,6 @@ if __name__ == "__main__":
     args = get_args()
 
     # train 및 결과 출력
+    args.save_path = os.path.join(args.save_path, args.train_key)
     os.makedirs(args.save_path, exist_ok=True)
     train()
